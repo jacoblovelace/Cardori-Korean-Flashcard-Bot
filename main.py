@@ -1,12 +1,12 @@
-# bot.py
+# main.py
 
 import os
-from discord.ext import commands
-from dotenv import load_dotenv
 import logging
 import boto3
+from dotenv import load_dotenv
 from class_users import Users
 from class_bot import Bot
+
 
 if __name__ == '__main__':
     
@@ -31,6 +31,7 @@ if __name__ == '__main__':
         print(f"\nCreated table {users.table.name}.")
     print(f"Now using Dynamo table: {users.table.name}")
     
-    # create discord bot and run it
-    bot = Bot()
+    # init discord bot and run it
+    bot = Bot(users)
     bot.run()
+    
