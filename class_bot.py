@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 import korean_dictionary
 from dotenv import load_dotenv
+from class_interaction_objects import FlashcardObject
 
 class Bot:
     """Encapsulates a discord.ext commands Bot."""
@@ -97,16 +98,16 @@ async def on_reaction_add(reaction, user):
     # if non-bot member reacts and message contains embeds
     if not user.bot and reaction.message.embeds:
         embed = reaction.message.embeds[0]
+        print(embed.footer.text)
         
         # SEARCH RESULT EMBED
-        
-        word_obj = {
-                'korean_word': embed.title,
-                'korean_dfn': embed.description,
-                'trans_word': embed.fields[0].name,
-                'trans_dfn': embed.fields[0].value
-        }
-        Bot._table.add_word_to_user_flashcards(user, word_obj)
+        if embed.footer.text[4] == 'S':
+            print("this is a search result embed!")
+            # create a flashcard from embed data
+            flashcard = FlashcardObject(embed.footer.text, embed.title, embed.description, embed.fields[0].name, embed.fields[0].value)
+            # add newly created flashcard in dict form to working set
+            flashcard.id = 'F' + flashcard.id[5:]
+            Bot._table.add_word_to_user_flashcards(user, flashcard.to_dict())
         
         #FLASHCARD QUESTION EMBED
         
@@ -117,30 +118,32 @@ async def on_reaction_add(reaction, user):
 
 @Bot._bot.command(aliases=['s', '검색', 'ㅅ'])
 async def search(ctx, word): 
-    words_or_error = korean_dictionary.get_word_info(word)
+    search_objects = korean_dictionary.get_search_results(word)
     
-    if isinstance(words_or_error, str):
-        # Log the specific error message to the console
-        logging.error(f"Error occurred while searching for '{word}': {words_or_error}")
-        
-        # Send a generic error message to the user
+    # if an error string
+    if isinstance(search_objects, str):
+        logging.error(f"Error occurred while searching for '{word}': {search_objects}")
         await ctx.send("Oops! Something went wrong. Please try again later.")
     
-    elif words_or_error:
+    # else if non-empty list of search objects
+    elif search_objects:
         embeds = []
-        for word_obj in words_or_error:
+        for search_obj in search_objects:
             response_embed = discord.Embed.from_dict(
                 {
                     "type": "rich",
-                    "title": f'{word_obj["korean_word"]}',
-                    "description": f'{word_obj["korean_dfn"]}',
+                    "title": f'{search_obj.korean_word}',
+                    "description": f'{search_obj.korean_dfn}',
                     "color": 0x5865f2,
                     "fields": [
                         {
-                        "name": f'{word_obj["trans_word"]}',
-                        "value": f'{word_obj["trans_dfn"]}'
+                        "name": f'{search_obj.trans_word}',
+                        "value": f'{search_obj.trans_dfn}'
                         }
-                    ]
+                    ],
+                    "footer": {
+                        "text": f'ID: {search_obj.id}'
+                    }
                 }
             )
             embeds.append(response_embed)
@@ -148,5 +151,10 @@ async def search(ctx, word):
         for embed in embeds:
             message = await ctx.send(embed=embed)
             await message.add_reaction("📝")
+            
     else:
-        await ctx.send("No info found.")
+        await ctx.send("No dictionary information found.")
+
+@Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'])
+async def quiz(ctx, num_cards=0): 
+    pass

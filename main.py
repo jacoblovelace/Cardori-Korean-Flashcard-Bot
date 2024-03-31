@@ -33,5 +33,4 @@ if __name__ == '__main__':
     
     # init discord bot and run it
     bot = Bot(users)
-    bot.run()
-    
+    bot.run()   
