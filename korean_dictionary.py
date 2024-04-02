@@ -57,7 +57,7 @@ def get_search_results(word):
         # construct the output as a list of search objects
         for i, sense in enumerate(sense_data):
             search_obj = SearchObject(
-                "S-" + search_items[0]["target_code"] + str(i),
+                search_items[0]["target_code"] + str(i),
                 search_items[0]["word"],
                 sense["definition"],
                 sense["translation"]["trans_word"],

@@ -1,6 +1,7 @@
 # class_users.py
 
 import logging
+import random
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ class Users:
         """
         self.dyn_resource = dyn_resource
         self.table = None
+        self.max_capacity = 100
 
     def exists(self, table_name):
         """
@@ -89,7 +91,6 @@ class Users:
         """
         
         try:
-            print(f"deleting table {self.table.name}")
             self.table.delete()
             self.table = None
         except ClientError as err:
@@ -126,10 +127,9 @@ class Users:
             if item:
                 return item
             else:
-                print(f"No item found for user {user.id} - {user.name}")
                 return None 
         
-    def add_user(self, user) -> None:
+    def add_user(self, user):
         """
         Adds a user to the table if not already in table.
 
@@ -137,6 +137,7 @@ class Users:
         """
         if not self.get_user(user):
             try:
+                # user schema
                 self.table.put_item(
                     Item={
                         "id": user.id,
@@ -150,11 +151,11 @@ class Users:
                             "quizzes_completed": 0,
                             "badges": []
                         },
-                        "working_set": []
+                        "flashcard_set": {}
                     },
                     TableName=self.table.name
                 )
-                print(f"added user to table {self.table.name}")
+            
             except ClientError as err:
                 logger.error(
                     "Couldn't add user %s to table %s. Here's why: %s: %s",
@@ -164,20 +165,57 @@ class Users:
                     err.response["Error"]["Message"],
                 )
                 raise
+            
+    def get_flashcard_by_id(self, user, id):
+        
+        # get the user's flashcard set
+        user_flashcard_set = self.table.get_item(
+            Key={"id": user.id, "name": user.name}
+        )["Item"]["flashcard_set"]
+        
+        # return the flashcard with the provided id
+        return user_flashcard_set.get(id)
     
-    def add_word_to_user_flashcards(self, user, word_obj):
+    def get_random_flashcards(self, user, num_flashcards):
+        
+        # get the user's flashcard set
+        user_flashcard_set = self.table.get_item(
+                Key={"id": user.id, "name": user.name}
+        )["Item"]["flashcard_set"]
+        
+        # ensure that you cannot request more flashcards than available
+        num_flashcards = min(num_flashcards, len(user_flashcard_set))
+        
+        # select num_flashcards unique items at random
+        random_flashcards = random.sample(list(user_flashcard_set.values()), num_flashcards)
+        
+        return random_flashcards
+
+    def add_flashcard_to_set(self, user, flashcard_dict):
         """
-        Adds a word object to the working set for a user in the table.
+        Adds a word object to the flashcard set for a user in the table.
 
         :param user: Discord user object.
-        :param word_obj: The word object to append to the user's flashcard set.
+        :param search_obj: The search object to add to the user's flashcard set dictionary.
         """
         
         try:
-            response = self.table.update_item(
+            # retrieve the user's flashcard_set
+            user_flashcard_set = self.table.get_item(
+                Key={"id": user.id, "name": user.name}
+            )["Item"]["flashcard_set"]
+            
+            if len(user_flashcard_set) >= self.max_capacity:
+                return False
+
+            # update the flashcard_set dictionary with the new key-value pair
+            user_flashcard_set[flashcard_dict["id"]] = flashcard_dict
+
+            # update the item with the modified flashcard_set
+            self.table.update_item(
                 Key={"id": user.id, "name": user.name},
-                UpdateExpression="SET working_set = list_append(working_set, :val)",
-                ExpressionAttributeValues={':val': [word_obj]},
+                UpdateExpression="SET flashcard_set = :val",
+                ExpressionAttributeValues={':val': user_flashcard_set},
                 ReturnValues="UPDATED_NEW"
             )
         except ClientError as err:
@@ -189,6 +227,8 @@ class Users:
                 err.response["Error"]["Message"],
             )
             raise
+        else:
+            return True
                
     def update_user_points(self, user, value):
         """
