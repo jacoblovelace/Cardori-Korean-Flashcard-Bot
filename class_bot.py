@@ -18,6 +18,9 @@ Events:
     on_ready: Called when the client is done preparing the data received from Discord.
     on_member_join: Called when a Member joins a Guild.
     on_reaction_add: Called when a Member joins a Guild.
+    
+Tasks:
+    check_review: This task runs every 30 minutes to check if users have flashcards ready for review. It sends reminders to users via direct message for the flashcards that need review.
 
 Commands:
     search: Command to search for Korean words in the dictionary.
@@ -29,7 +32,8 @@ import os
 import logging
 import discord
 import asyncio
-from discord.ext import commands
+import datetime
+from discord.ext import commands, tasks
 import korean_dictionary
 from dotenv import load_dotenv
 from class_interaction_objects import FlashcardObject
@@ -58,7 +62,7 @@ class Bot:
         if cls._instance is None:
             print('Creating a Bot instance...')
             cls._instance = super(Bot, cls).__new__(cls)
-            cls._guild = os.getenv('DISCORD_GUILD')
+            cls._guild = None
             cls._table = table
 
         return cls._instance
@@ -80,21 +84,24 @@ async def on_ready():
     Called when the client is done preparing the data received from Discord.
     """
     
-    guild = discord.utils.get(Bot._bot.guilds, name=Bot._guild)
+    Bot._guild = discord.utils.get(Bot._bot.guilds, name=os.getenv('DISCORD_GUILD'))
 
     print(
         f'\n{Bot._bot.user.name} is connected to the following guild:\n'
-        f'{guild.name} (id: {guild.id})\n'
+        f'{Bot._guild.name} (id: {Bot._guild.id})\n'
     )
 
     # get and print members in this guild
-    members = '\n - '.join([member.name for member in guild.members])
+    members = '\n - '.join([member.name for member in Bot._guild.members])
     print(f'Guild Members:\n - {members}')
     
     # add any members to users table that are not already added
-    for member in guild.members:
+    for member in Bot._guild.members:
         if not member.bot:
             Bot._table.add_user(member)
+            
+    # start the review loop task
+    check_review.start()
 
 @Bot._bot.event
 async def on_member_join(member):
@@ -142,6 +149,70 @@ async def on_reaction_add(reaction, user):
                     }
                 )
                 await reaction.message.channel.send(embed=error_embed)
+
+# TASKS
+
+@tasks.loop(minutes=30)
+async def check_review():
+    current_time = datetime.datetime.now()
+
+    # loop through all users in users table
+    all_users = Bot._table.get_all_users()
+    for user_entry in all_users:
+        
+        reminder_packet = []
+
+        # access the flashcard set for the current user as a list
+        for flashcard_dict in user_entry["flashcard_set"].values():
+            
+            if not flashcard_dict["spaced_repetition"]["to_review"]:
+                last_reviewed_str = flashcard_dict["spaced_repetition"].get("last_reviewed")
+                interval_minutes = int(flashcard_dict["spaced_repetition"]["interval"])  # Convert to integer
+                
+                if last_reviewed_str is not None:
+                    last_reviewed = datetime.datetime.fromisoformat(last_reviewed_str)
+                    
+                    if (current_time - last_reviewed >= datetime.timedelta(minutes=interval_minutes)):
+                        flashcard_dict["spaced_repetition"]["to_review"] = True
+                        flashcard_dict["spaced_repetition"]["last_reminded"] = current_time.isoformat()
+                        reminder_packet.append(flashcard_dict)
+            else:
+                last_reminded_str = flashcard_dict["spaced_repetition"].get("last_reminded")
+                if last_reminded_str is not None:
+                    last_reminded = datetime.datetime.fromisoformat(last_reminded_str)
+                    
+                    if (current_time - last_reminded >= datetime.timedelta(days=1)):
+                        flashcard_dict["spaced_repetition"]["last_reminded"] = current_time.isoformat()
+                        reminder_packet.append(flashcard_dict)
+        
+        # send packet if there are any cards to be reminded
+        if reminder_packet:
+            user_id = user_entry['id']
+            user = Bot._bot.get_user(user_id)
+            user_dm_channel = await user.create_dm()
+            
+            flashcard_list = []
+            for flashcard_dict in reminder_packet:
+                flashcard_list.append(f'• {flashcard_dict["front"]["word"]} / {flashcard_dict["back"]["word"]}')
+    
+            reminder_embed = discord.Embed.from_dict(
+                {
+                    "type": "rich",
+                    "title": "It's time to review these flashcards!",
+                    "description": '\n'.join(flashcard_list),
+                    "color": 0x5865f2,
+                    "footer": {
+                        "text": f'{len(flashcard_list)} flashcard{"" if len(flashcard_list) == 1 else "s"}'
+                    }
+                }
+            )
+            await user_dm_channel.send(embed=reminder_embed)
+            
+            # update the flashcard data in the database
+            for flashcard_dict in reminder_packet:
+                Bot._table.update_flashcard(user, flashcard_dict)
+
+    
 
 # COMMANDS
 

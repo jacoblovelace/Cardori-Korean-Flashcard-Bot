@@ -9,8 +9,9 @@ Methods:
     exists: Determines whether a table exists.
     create_table: Creates a new DynamoDB table for storing user data.
     delete_table: Deletes the DynamoDB table.
-    get_user: Retrieves tabular data entry for a specific user.
-    add_user: Adds a user to the table if not already in the table.
+    get_all_users: Fetchesall user entries from the DynamoDB table.
+    get_user: Retrieves data entry for a specific user from the DynamoDB table.
+    add_user: Adds a user to the DynamoDB table if not already in table.
     get_flashcard_by_id: Retrieves a flashcard by its ID for a specific user.
     get_flashcard_set: Retrieves the flashcard set for a specific user.
     get_random_flashcards: Retrieves a specified number of random flashcards for a user.
@@ -119,6 +120,13 @@ class Users:
                 err.response["Error"]["Message"],
             )
             raise
+        
+    def get_all_users(self):
+        """
+        Fetch all user entries from the DynamoDB table.
+        """
+        response = self.table.scan()
+        return response.get('Items', [])
 
     def get_user(self, user):
         """

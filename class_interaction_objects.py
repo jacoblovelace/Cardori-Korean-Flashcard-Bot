@@ -58,10 +58,12 @@ class FlashcardObject:
             "dfn": trans_dfn
         }
         self.spaced_repetition = spaced_repetition or {
+            "to_review": False,
             "last_reviewed": None,
+            "last_reminded": None,
             "interval": self.INITIAL_INTERVAL.total_seconds() // 60,
-            "times_studied": 0,
-            "learning_phase": True
+            "learning_phase": True,
+            "times_studied": 0
         }
         
     @classmethod
@@ -109,7 +111,7 @@ class FlashcardObject:
             return self.FACTORS["Okay"][flashcard_phase]
     
     def update_interval(self, factor):
-        new_interval = self.spaced_repetition['interval'] * factor
+        new_interval = int(self.spaced_repetition['interval']) * factor
         self.spaced_repetition['interval'] = min(new_interval, int(self.MAX_INTERVAL.total_seconds() / 60))
         self.spaced_repetition['interval'] = max(new_interval, int(self.MIN_INTERVAL.total_seconds() / 60))
     
@@ -121,6 +123,7 @@ class FlashcardObject:
         factor = self.calculate_factor(rating)
         self.update_interval(factor)
         self.update_learning_phase()
+        self.spaced_repetition['to_review'] = False
         self.spaced_repetition['last_reviewed'] = datetime.datetime.now().isoformat()
         self.spaced_repetition['times_studied'] += 1
     
