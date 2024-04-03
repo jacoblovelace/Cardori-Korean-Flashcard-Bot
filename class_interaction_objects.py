@@ -1,3 +1,25 @@
+"""
+This module defines two classes: `SearchObject` and `FlashcardObject`.
+
+Classes:
+    SearchObject: Represents an object used to store a single dictionary search result.
+    FlashcardObject: Represents a flashcard object used for spaced repetition learning.
+
+SearchObject Methods:
+    __init__: Initializes a SearchObject instance.
+    to_dict: Converts a SearchObject instance to a dictionary.
+
+FlashcardObject Methods:
+    __init__: Initializes a FlashcardObject instance.
+    from_dict: Constructs a FlashcardObject instance from a dictionary.
+    to_dict: Converts a FlashcardObject instance to a dictionary.
+    flip: Flips the front and back of the flashcard.
+    calculate_factor: Calculates the factor based on user rating for the spaced repetition algorithm.
+    update_interval: Updates the interval for spaced repetition learning.
+    update_learning_phase: Updates the learning phase based on the interval.
+    process_rating: Processes the user rating for the flashcard.
+"""
+
 import datetime
 
 class SearchObject:

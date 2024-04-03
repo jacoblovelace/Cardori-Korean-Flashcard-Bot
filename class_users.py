@@ -1,4 +1,23 @@
-# class_users.py
+"""
+This module defines a class `Users` that encapsulates an Amazon DynamoDB table of Discord channel user data.
+
+Classes:
+    Users: Represents a DynamoDB table of Discord channel user data.
+
+Methods:
+    __init__: Initializes the Users instance with a Boto3 DynamoDB resource.
+    exists: Determines whether a table exists.
+    create_table: Creates a new DynamoDB table for storing user data.
+    delete_table: Deletes the DynamoDB table.
+    get_user: Retrieves tabular data entry for a specific user.
+    add_user: Adds a user to the table if not already in the table.
+    get_flashcard_by_id: Retrieves a flashcard by its ID for a specific user.
+    get_flashcard_set: Retrieves the flashcard set for a specific user.
+    get_random_flashcards: Retrieves a specified number of random flashcards for a user.
+    add_flashcard_to_set: Adds a word object to the flashcard set for a user in the table.
+    update_flashcard: Updates a flashcard in the user's flashcard set.
+    update_user_points: Updates the study points for a specific user.
+"""
 
 import logging
 import random

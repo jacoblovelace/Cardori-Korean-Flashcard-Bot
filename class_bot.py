@@ -1,10 +1,34 @@
-# class_bot.py
+"""
+This module defines a class `Bot` that encapsulates a `discord.ext` commands Bot along with event handlers and commands for Discord interaction.
+
+Classes:
+    Bot: Represents a discord.ext commands Bot.
+
+Attributes:
+    _instance: Class attribute representing the existence of a singleton instance.
+    _bot: Class attribute representing the Bot instance.
+    _guild: Class attribute representing the Discord guild.
+    _table: Class attribute representing the table for storing user data.
+
+Methods:
+    __new__: Singleton pattern "constructor" to create Bot instance if none exists and return it.
+    run: Runs the Bot instance using the token.
+
+Events:
+    on_ready: Called when the client is done preparing the data received from Discord.
+    on_member_join: Called when a Member joins a Guild.
+    on_reaction_add: Called when a Member joins a Guild.
+
+Commands:
+    search: Command to search for Korean words in the dictionary.
+    flashcards: Command to view the flashcard set of the user.
+    quiz: Command to start a flashcard quiz session.
+"""
 
 import os
 import logging
 import discord
 import asyncio
-import datetime
 from discord.ext import commands
 import korean_dictionary
 from dotenv import load_dotenv

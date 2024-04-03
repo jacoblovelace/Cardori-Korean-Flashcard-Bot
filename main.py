@@ -1,4 +1,10 @@
-# main.py
+"""
+Main module for running the Discord bot application.
+
+This module initializes the necessary components such as logging, AWS resources,
+and Discord bot functionality. It checks for the existence of a DynamoDB table
+and creates one if it doesn't exist. Finally, it initializes and runs the Discord bot.
+"""
 
 import os
 import logging
