@@ -169,19 +169,21 @@ class Users:
     def get_flashcard_by_id(self, user, id):
         
         # get the user's flashcard set
-        user_flashcard_set = self.table.get_item(
-            Key={"id": user.id, "name": user.name}
-        )["Item"]["flashcard_set"]
+        user_flashcard_set = self.get_flashcard_set(user)
         
         # return the flashcard with the provided id
         return user_flashcard_set.get(id)
     
+    def get_flashcard_set(self, user):
+        
+        return self.table.get_item(
+            Key={"id": user.id, "name": user.name}
+        )["Item"]["flashcard_set"]
+    
     def get_random_flashcards(self, user, num_flashcards):
         
         # get the user's flashcard set
-        user_flashcard_set = self.table.get_item(
-                Key={"id": user.id, "name": user.name}
-        )["Item"]["flashcard_set"]
+        user_flashcard_set = self.get_flashcard_set(user)
         
         # ensure that you cannot request more flashcards than available
         num_flashcards = min(num_flashcards, len(user_flashcard_set))
@@ -201,9 +203,7 @@ class Users:
         
         try:
             # retrieve the user's flashcard_set
-            user_flashcard_set = self.table.get_item(
-                Key={"id": user.id, "name": user.name}
-            )["Item"]["flashcard_set"]
+            user_flashcard_set = self.get_flashcard_set(user)
             
             if len(user_flashcard_set) >= self.max_capacity:
                 return False
@@ -229,6 +229,22 @@ class Users:
             raise
         else:
             return True
+        
+    def update_flashcard(self, user, flashcard_dict):
+        
+        # retrieve the user's flashcard_set
+        user_flashcard_set = self.get_flashcard_set(user)
+                
+        # update the flashcard_set dictionary with the new key-value pair
+        user_flashcard_set[flashcard_dict["id"]] = flashcard_dict
+
+        # update the item with the modified flashcard_set
+        self.table.update_item(
+            Key={"id": user.id, "name": user.name},
+            UpdateExpression="SET flashcard_set = :val",
+            ExpressionAttributeValues={':val': user_flashcard_set},
+            ReturnValues="UPDATED_NEW"
+        )
                
     def update_user_points(self, user, value):
         """

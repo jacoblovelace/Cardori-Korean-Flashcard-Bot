@@ -4,6 +4,7 @@ import os
 import logging
 import discord
 import asyncio
+import datetime
 from discord.ext import commands
 import korean_dictionary
 from dotenv import load_dotenv
@@ -108,7 +109,15 @@ async def on_reaction_add(reaction, user):
             )
             # add newly created flashcard as dict to flashcard set
             if not Bot._table.add_flashcard_to_set(user, flashcard_obj.to_dict()):
-                await reaction.message.channel.send(f"Cannot add flashcard. Maximum capacity of {Bot._table.max_capacity} reached.")
+                error_embed = discord.Embed.from_dict(
+                    {
+                        "type": "rich",
+                        "title": "Error",
+                        "description": f"Cannot add flashcard. Maximum capacity of {Bot._table.max_capacity} reached.",
+                        "color": 0xFF6347,
+                    }
+                )
+                await reaction.message.channel.send(embed=error_embed)
 
 # COMMANDS
 
@@ -118,8 +127,16 @@ async def search(ctx, word):
     
     # if an error string
     if isinstance(search_objects, str):
+        error_embed = discord.Embed.from_dict(
+            {
+                "type": "rich",
+                "title": "Error",
+                "description": "Oops! Something went wrong. Please try again later.",
+                "color": 0xFF6347,
+            }
+        )
         logging.error(f"Error occurred while searching for '{word}': {search_objects}")
-        await ctx.send("Oops! Something went wrong. Please try again later.")
+        await ctx.send(embed=error_embed)
     
     # else if non-empty list of search objects
     elif search_objects:
@@ -149,14 +166,49 @@ async def search(ctx, word):
             await message.add_reaction("📝")
             
     else:
-        await ctx.send("No dictionary information found.")
+        error_embed = discord.Embed.from_dict(
+            {
+                "type": "rich",
+                "title": "Error",
+                "description": "No dictionary information found.",
+                "color": 0xFF6347,
+            }
+        )
+        await ctx.send(embed=error_embed)
+        
+@Bot._bot.command(aliases=['f', '플래시카드', 'ㅍ'])
+async def flashcards(ctx):
+    user_flashcard_set = Bot._table.get_flashcard_set(ctx.author)
+    
+    flashcard_list = []
+    for i, flashcard in enumerate(user_flashcard_set.values()):
+        flashcard_list.append(f'[{i}]\t{flashcard["front"]["word"]} / {flashcard["back"]["word"]}')
+    
+    flashcard_set_embed = discord.Embed.from_dict(
+        {
+            "type": "rich",
+            "title": f"{ctx.author}'s Flashcard Set",
+            "description": '\n'.join(flashcard_list),
+            "color": 0x5865f2,
+            "footer": {
+                "text": f'{len(flashcard_list)} flashcard{"" if len(flashcard_list) == 1 else "s"}'
+            }
+        }
+    )
+    await ctx.send(embed=flashcard_set_embed)
+ 
 
 @Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'])
-async def quiz(ctx, num_cards=10):
+async def quiz(ctx, *args):
     
-    # prevent negative numbers
-    num_cards = max(num_cards, 1)
+    # parse variable arguments
+    inverted = "-i" in args
+    num_cards = 10 
+    for arg in args:
+        if arg.isdigit():
+            num_cards = max(int(arg), 1)
     
+    # retrieve random list of flashcards
     flashcard_list = Bot._table.get_random_flashcards(ctx.author, num_cards)
     
     # start of quiz message
@@ -174,12 +226,18 @@ async def quiz(ctx, num_cards=10):
     index = 0
     while index < len(flashcard_list):
         flashcard = flashcard_list[index]
+        flashcard_object = FlashcardObject.from_dict(flashcard)
+
+        if inverted:
+            flashcard_object.flip()
+            flashcard = flashcard_object.to_dict()
+            flashcard_object.flip()
         
         flashcard_front = discord.Embed.from_dict(
             {
                 "type": "rich",
                 "title": f'Flashcard - Front',
-                "color": 0x5865f2,
+                "color": 0xcccccc,
                 "fields": [
                     {
                         "name": f'{flashcard["front"]["word"]}',
@@ -215,7 +273,7 @@ async def quiz(ctx, num_cards=10):
             {
                 "type": "rich",
                 "title": f'Flashcard - Back',
-                "color": 0x5865f2,
+                "color": 0xcccccc,
                 "fields": [
                     {
                         "name": f'{flashcard["front"]["word"]}',
@@ -238,7 +296,7 @@ async def quiz(ctx, num_cards=10):
         await message.edit(embed=flashcard_back)
         await message.add_reaction("🟥")  
         await message.add_reaction("🟨")  
-        await message.add_reaction("🟩")  
+        await message.add_reaction("🟩") 
         
         # wait for reaction
         try:
@@ -249,17 +307,13 @@ async def quiz(ctx, num_cards=10):
             )
         except asyncio.TimeoutError:
             break
+        
         else:
-            if reaction_back.emoji == '🟥':
-                Bot._table.update_user_points(ctx.author, 1)
-                points_earned += 1
-            elif reaction_back.emoji == '🟨':
-                Bot._table.update_user_points(ctx.author, 2)
-                points_earned += 2
-            else:
-                Bot._table.update_user_points(ctx.author, 3)
-                points_earned += 3
-                            
+            # update spaced repetition data for flashcard based on user rating
+            flashcard_object.process_rating(reaction_back)
+            Bot._table.update_flashcard(ctx.author, flashcard_object.to_dict())
+            
+            # increment to next flashcard in quiz
             index += 1
             await asyncio.sleep(1)
             
@@ -268,7 +322,7 @@ async def quiz(ctx, num_cards=10):
         {
             "type": "rich",
             "title": 'Flashcard Quiz Ended',
-            "description": f'{index} flashcards studied\n{points_earned} points earned',
+            "description": f'{index} flashcard{"" if index == 1 else "s"} studied\n{points_earned} point{"" if points_earned == 1 else "s"} earned',
             "color": 0x5865f2,
         }
     )
