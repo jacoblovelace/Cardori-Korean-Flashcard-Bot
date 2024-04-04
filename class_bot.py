@@ -336,6 +336,7 @@ async def quiz(ctx, *args):
                 color=0xFF6347
             )
         )
+        return
     
     # start of quiz message
     await ctx.send(
@@ -437,15 +438,17 @@ async def quiz(ctx, *args):
             break
         
         else:
-            # update spaced repetition data for flashcard based on user rating
-            flashcard_object.process_rating(reaction_back)
+            # based on user rating, update user points and flashcard spaced repetition data
+            points_earned += flashcard_object.process_rating(reaction_back)
             Bot._table.update_flashcard(ctx.author, flashcard_object.to_dict())
             
             # increment to next flashcard in quiz
             index += 1
             await asyncio.sleep(1)
             
-    # end of quiz message
+    # end of quiz
+    Bot._table.update_user_points(ctx.author, points_earned)
+
     await ctx.send(
         embed=discord.Embed(
             type="rich",

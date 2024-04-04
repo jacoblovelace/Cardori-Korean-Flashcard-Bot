@@ -15,6 +15,7 @@ from class_interaction_objects import SearchObject
 load_dotenv()
 
 URL = "https://krdict.korean.go.kr/api/search"
+MAX_SEARCH_RESULTS = 5
 
 def get_search_results(word):
     search_results = []
@@ -56,6 +57,9 @@ def get_search_results(word):
         
         # construct the output as a list of search objects
         for i, sense in enumerate(sense_data):
+            if i >= MAX_SEARCH_RESULTS:
+                break
+            
             search_obj = SearchObject(
                 search_items[0]["target_code"] + str(i),
                 search_items[0]["word"],

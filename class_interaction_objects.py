@@ -172,6 +172,22 @@ class FlashcardObject:
         self.front = self.back
         self.back = temp  
         
+    def calculate_points(self, rating):
+        """
+        Calculates the points earned based on the user's rating.
+
+        :param rating: User's rating.
+        :return: Points earned from rating.
+        """
+        
+        rating_to_points = {
+            '🟩': 3,
+            '🟨': 1,
+            '🟥': 0
+        }
+        
+        return rating_to_points[rating.emoji]
+        
     def calculate_factor(self, rating):
         """
         Calculates the factor based on the user's rating.
@@ -179,15 +195,16 @@ class FlashcardObject:
         :param rating: User's rating.
         :return: Factor for spaced repetition.
         """
-        
         flashcard_phase = "Learning" if self.spaced_repetition["learning_phase"] else "Review"
         
-        if rating.emoji == '🟥':
-            return self.FACTORS["Poor"][flashcard_phase]
-        elif rating.emoji == '🟩':
-            return self.FACTORS["Good"][flashcard_phase]
-        else:
-            return self.FACTORS["Okay"][flashcard_phase]
+        rating_to_factor = {
+            '🟩': self.FACTORS["Good"][flashcard_phase],
+            '🟨': self.FACTORS["Okay"][flashcard_phase],
+            '🟥': self.FACTORS["Poor"][flashcard_phase]
+        }
+        
+        return rating_to_factor[rating.emoji]
+        
     
     def update_interval(self, factor):
         """
@@ -222,4 +239,8 @@ class FlashcardObject:
         self.spaced_repetition['to_review'] = False
         self.spaced_repetition['last_reviewed'] = datetime.datetime.now().isoformat()
         self.spaced_repetition['times_studied'] += 1
+        
+        points_earned = self.calculate_points(rating)
+        
+        return points_earned
     
