@@ -14,6 +14,7 @@ FlashcardObject Methods:
     from_dict: Constructs a FlashcardObject instance from a dictionary.
     to_dict: Converts a FlashcardObject instance to a dictionary.
     invert: Swaps the information on front and back of the flashcard.
+    calculate_points: Calculates the points earned based on the user's rating.
     calculate_factor: Calculates the factor based on user rating for the spaced repetition algorithm.
     update_interval: Updates the interval for spaced repetition learning.
     update_learning_phase: Updates the learning phase based on the interval.
