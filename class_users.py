@@ -194,6 +194,13 @@ class Users:
                 raise
             
     def get_flashcard_by_id(self, user, id):
+        """
+        Retrieves a flashcard from the user's flashcard set by its ID.
+
+        :param user: The user whose flashcard set is being accessed.
+        :param id: The ID of the flashcard to retrieve.
+        :return: The flashcard with the provided ID, or None if not found.
+        """
         
         # get the user's flashcard set
         user_flashcard_set = self.get_flashcard_set(user)
@@ -202,12 +209,25 @@ class Users:
         return user_flashcard_set.get(id)
     
     def get_flashcard_set(self, user):
+        """
+        Retrieves the flashcard set belonging to the specified user.
+
+        :param user: The user whose flashcard set is being retrieved.
+        :return: The flashcard set of the user.
+        """
         
         return self.table.get_item(
             Key={"id": user.id, "name": user.name}
         )["Item"]["flashcard_set"]
     
     def get_random_flashcards(self, user, num_flashcards):
+        """
+        Retrieves a specified number of random flashcards from the user's flashcard set.
+
+        :param user: The user whose flashcard set is being accessed.
+        :param num_flashcards: The number of random flashcards to retrieve.
+        :return: A list of randomly selected flashcards.
+        """
         
         # get the user's flashcard set
         user_flashcard_set = self.get_flashcard_set(user)
@@ -258,6 +278,12 @@ class Users:
             return True
         
     def update_flashcard(self, user, flashcard_dict):
+        """
+        Updates a flashcard in the user's flashcard set.
+        
+        :param user: Discord user object.
+        :param flashcard_dict (dict): A dictionary representing the flashcard to be updated.
+        """
         
         # retrieve the user's flashcard_set
         user_flashcard_set = self.get_flashcard_set(user)
@@ -279,7 +305,6 @@ class Users:
 
         :param user: Discord user object.
         :param amount: The value to add to the user's study points field.
-        :return: The field that was updated, with its new value.
         """
         
         try:
@@ -298,7 +323,3 @@ class Users:
                 err.response["Error"]["Message"],
             )
             raise
-        else:
-            return response["Attributes"]
-
-

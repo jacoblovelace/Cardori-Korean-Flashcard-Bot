@@ -41,9 +41,6 @@ from class_interaction_objects import FlashcardObject
 class Bot:
     """Encapsulates a discord.ext commands Bot."""
 
-    load_dotenv()
-
-    # class attributes
     _instance = None
     _bot = commands.Bot(
         command_prefix='!', 
@@ -58,6 +55,8 @@ class Bot:
 
         :return: Bot._instance: Class attribute representing existence of singleton instance.
         """
+        
+        load_dotenv()
         
         if cls._instance is None:
             print('Creating a Bot instance...')
@@ -101,7 +100,7 @@ async def on_ready():
             Bot._table.add_user(member)
             
     # start the review loop task
-    check_review.start()
+    check_cards_for_review.start()
 
 @Bot._bot.event
 async def on_member_join(member):
@@ -110,7 +109,6 @@ async def on_member_join(member):
 
     :param member: The member who joined.
     """
-    
     # add member to users table (if already exists, nothing happens)
     if not member.bot:
         Bot._table.add_user(member)
@@ -153,13 +151,16 @@ async def on_reaction_add(reaction, user):
 # TASKS
 
 @tasks.loop(minutes=30)
-async def check_review():
+async def check_cards_for_review():
+    """
+    Checks user flashcards for review at regular intervals and sends reminders to users.
+    """
+    
     current_time = datetime.datetime.now()
 
     # loop through all users in users table
     all_users = Bot._table.get_all_users()
     for user_entry in all_users:
-        
         reminder_packet = []
 
         # access the flashcard set for the current user as a list
@@ -167,25 +168,28 @@ async def check_review():
             
             if not flashcard_dict["spaced_repetition"]["to_review"]:
                 last_reviewed_str = flashcard_dict["spaced_repetition"].get("last_reviewed")
-                interval_minutes = int(flashcard_dict["spaced_repetition"]["interval"])  # Convert to integer
+                if last_reviewed_str is None:
+                    continue
                 
-                if last_reviewed_str is not None:
-                    last_reviewed = datetime.datetime.fromisoformat(last_reviewed_str)
-                    
-                    if (current_time - last_reviewed >= datetime.timedelta(minutes=interval_minutes)):
-                        flashcard_dict["spaced_repetition"]["to_review"] = True
-                        flashcard_dict["spaced_repetition"]["last_reminded"] = current_time.isoformat()
-                        reminder_packet.append(flashcard_dict)
+                last_reviewed = datetime.datetime.fromisoformat(last_reviewed_str)
+                interval_minutes = int(flashcard_dict["spaced_repetition"]["interval"])  # Convert to integer
+
+                if (current_time - last_reviewed >= datetime.timedelta(minutes=interval_minutes)):
+                    flashcard_dict["spaced_repetition"]["to_review"] = True
+                    flashcard_dict["spaced_repetition"]["last_reminded"] = current_time.isoformat()
+                    reminder_packet.append(flashcard_dict)
             else:
                 last_reminded_str = flashcard_dict["spaced_repetition"].get("last_reminded")
-                if last_reminded_str is not None:
-                    last_reminded = datetime.datetime.fromisoformat(last_reminded_str)
-                    
-                    if (current_time - last_reminded >= datetime.timedelta(days=1)):
-                        flashcard_dict["spaced_repetition"]["last_reminded"] = current_time.isoformat()
-                        reminder_packet.append(flashcard_dict)
+                if last_reminded_str is None:
+                    continue
+                
+                last_reminded = datetime.datetime.fromisoformat(last_reminded_str)
+            
+                if (current_time - last_reminded >= datetime.timedelta(days=1)):
+                    flashcard_dict["spaced_repetition"]["last_reminded"] = current_time.isoformat()
+                    reminder_packet.append(flashcard_dict)
         
-        # send packet if there are any cards to be reminded
+        # send packet of cards to review if not empty
         if reminder_packet:
             user_id = user_entry['id']
             user = Bot._bot.get_user(user_id)
@@ -212,26 +216,31 @@ async def check_review():
             for flashcard_dict in reminder_packet:
                 Bot._table.update_flashcard(user, flashcard_dict)
 
-    
 
 # COMMANDS
 
 @Bot._bot.command(aliases=['s', '검색', 'ㄱ'])
-async def search(ctx, word): 
+async def search(ctx, word):
+    """
+    Searches for the given word in the Korean dictionary and displays the search results.
+
+    :param ctx (discord.ext.commands.Context): The context of the command.
+    :param word (str): The word to search for in the Korean dictionary.
+    """
+    
     search_objects = korean_dictionary.get_search_results(word)
     
     # if an error string
     if isinstance(search_objects, str):
-        error_embed = discord.Embed.from_dict(
-            {
-                "type": "rich",
-                "title": "Error",
-                "description": "Oops! Something went wrong. Please try again later.",
-                "color": 0xFF6347,
-            }
+        await ctx.send(
+            embed=discord.Embed(
+                type="rich",
+                title="Error",
+                description="Something went wrong",
+                color=0xFF6347
+            )
         )
         logging.error(f"Error occurred while searching for '{word}': {search_objects}")
-        await ctx.send(embed=error_embed)
     
     # else if non-empty list of search objects
     elif search_objects:
@@ -261,18 +270,22 @@ async def search(ctx, word):
             await message.add_reaction("📝")
             
     else:
-        error_embed = discord.Embed.from_dict(
-            {
-                "type": "rich",
-                "title": "Error",
-                "description": "No dictionary information found.",
-                "color": 0xFF6347,
-            }
+        await ctx.send(
+            embed=discord.Embed(
+                type="rich",
+                title="Error",
+                description="No search results found",
+                color=0xFF6347
+            )
         )
-        await ctx.send(embed=error_embed)
         
 @Bot._bot.command(aliases=['f', '플래시카드', 'ㅍ'])
 async def flashcards(ctx):
+    """
+    Displays the flashcard set belonging to the user.
+
+    :param ctx (discord.ext.commands.Context): The context of the command.
+    """
     user_flashcard_set = Bot._table.get_flashcard_set(ctx.author)
     
     flashcard_list = []
@@ -291,10 +304,17 @@ async def flashcards(ctx):
         }
     )
     await ctx.send(embed=flashcard_set_embed)
- 
 
 @Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'])
 async def quiz(ctx, *args):
+    """
+    Initiates a flashcard quiz session for the user.
+
+    :param ctx (discord.ext.commands.Context): The context of the command.
+    :param *args (str): Variable arguments:
+        - "-i" to invert flashcards.
+        - An integer to specify the number of flashcards for the quiz.
+    """
     
     # parse variable arguments
     inverted = "-i" in args
@@ -306,27 +326,40 @@ async def quiz(ctx, *args):
     # retrieve random list of flashcards
     flashcard_list = Bot._table.get_random_flashcards(ctx.author, num_cards)
     
+    # if no flashcards in set, send error
+    if not flashcard_list:
+        await ctx.send(
+            embed=discord.Embed(
+                type="rich",
+                title="Error",
+                description="No flashcards in this set",
+                color=0xFF6347
+            )
+        )
+    
     # start of quiz message
-    quiz_start = discord.Embed.from_dict(
-        {
-            "type": "rich",
-            "title": 'Flashcard Quiz',
-            "description": f'{len(flashcard_list)} flashcards',
-            "color": 0x5865f2,
-        }
+    await ctx.send(
+        embed=discord.Embed(
+            type="rich",
+            title="Flashcard Quiz",
+            description=f"{len(flashcard_list)} flashcards",
+            color=0x5865f2
+        )
     )
-    await ctx.send(embed=quiz_start)
     
     points_earned = 0
     index = 0
+    
+    # begin iteration through flashcard list
     while index < len(flashcard_list):
         flashcard = flashcard_list[index]
         flashcard_object = FlashcardObject.from_dict(flashcard)
 
+        # switch front and back if inverted
         if inverted:
-            flashcard_object.flip()
+            flashcard_object.invert()
             flashcard = flashcard_object.to_dict()
-            flashcard_object.flip()
+            flashcard_object.invert()
         
         flashcard_front = discord.Embed.from_dict(
             {
@@ -413,12 +446,11 @@ async def quiz(ctx, *args):
             await asyncio.sleep(1)
             
     # end of quiz message
-    quiz_end = discord.Embed.from_dict(
-        {
-            "type": "rich",
-            "title": 'Flashcard Quiz Ended',
-            "description": f'{index} flashcard{"" if index == 1 else "s"} studied\n{points_earned} point{"" if points_earned == 1 else "s"} earned',
-            "color": 0x5865f2,
-        }
+    await ctx.send(
+        embed=discord.Embed(
+            type="rich",
+            title='Flashcard Quiz Ended',
+            description=f'{index} flashcard{"" if index == 1 else "s"} studied\n{points_earned} point{"" if points_earned == 1 else "s"} earned',
+            color=0x5865f2,
+        )
     )
-    await ctx.send(embed=quiz_end)
