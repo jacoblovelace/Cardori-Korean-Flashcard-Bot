@@ -174,8 +174,11 @@ class Users:
                         },
                         "progress": {
                             "study_points": 0,
-                            "words_studied": 0,
+                            "flashcards_studied": 0,
                             "quizzes_completed": 0,
+                            "last_quiz_completion": None,
+                            "current_streak": 0,
+                            "longest_streak": 0,
                             "badges": []
                         },
                         "flashcard_set": {}

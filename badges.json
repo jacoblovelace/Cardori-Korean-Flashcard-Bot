@@ -1,0 +1,135 @@
+{
+    "study_points": [
+        {
+            "name": "You've got a Point",
+            "description": "Accumulate 10 study points",
+            "threshold": 10
+        },
+        {
+            "name": "Points, Please!",
+            "description": "Accumulate 100 study points",
+            "threshold": 100
+        },
+        {
+            "name": "Points o' Plenty",
+            "description": "Accumulate 250 study points",
+            "threshold": 250
+        },
+        {
+            "name": "Points with a Side of Points",
+            "description": "Accumulate 500 study points",
+            "threshold": 500
+        },
+        {
+            "name": "Study Point Pro",
+            "description": "Accumulate 1,000 study points",
+            "threshold": 1000
+        },
+        {
+            "name": "The Collector",
+            "description": "Accumulate 10,000 study points",
+            "threshold": 10000
+        }
+    ],
+    "flashcards_studied": [
+        {
+            "name": "First Flips",
+            "description": "Study 10 flashcards",
+            "threshold": 10
+        },
+        {
+            "name": "Flip-tastic!",
+            "description": "Study 50 flashcards",
+            "threshold": 50
+        },
+        {
+            "name": "Fervent Flipper",
+            "description": "Study 100 flashcards",
+            "threshold": 100
+        },
+        {
+            "name": "Flip Fanatic",
+            "description": "Study 250 flashcards",
+            "threshold": 250
+        },
+        {
+            "name": "Flip Fever",
+            "description": "Study 500 flashcards",
+            "threshold": 500
+        },
+        {
+            "name": "The Student",
+            "description": "Study 1000 flashcards",
+            "threshold": 1000
+        }
+    ],
+    "quizzes_completed": [
+        {
+            "name": "Starter Scholar",
+            "description": "Complete 5 quizzes",
+            "threshold": 5
+        },
+        {
+            "name": "Quiz Whiz",
+            "description": "Complete 20 quizzes",
+            "threshold": 20
+        },
+        {
+            "name": "Brainiac",
+            "description": "Complete 50 quizzes",
+            "threshold": 50
+        },
+        {
+            "name": "Trivia Champ",
+            "description": "Complete 100 quizzes",
+            "threshold": 100
+        },
+        {
+            "name": "Examiner",
+            "description": "Complete 250 quizzes",
+            "threshold": 250
+        },
+        {
+            "name": "Knowledge is Power",
+            "description": "Complete 500 quizzes",
+            "threshold": 500
+        },
+        {
+            "name": "The Tested",
+            "description": "Complete 1000 quizzes",
+            "threshold": 1000
+        }
+    ],
+    "longest_streak": [
+        {
+            "name": "Streak of the Week",
+            "description": "Reach a 7-day streak",
+            "threshold": 7
+        },
+        {
+            "name": "Week by Week",
+            "description": "Reach a 14-day streak",
+            "threshold": 14
+        },
+        {
+            "name": "Consistent",
+            "description": "Reach a 30-day streak",
+            "threshold": 30
+        },
+        {
+            "name": "Streak Freak",
+            "description": "Reach a 90-day streak",
+            "threshold": 90
+        },
+        {
+            "name": "Non-Stop Learner",
+            "description": "Reach a 180-day streak",
+            "threshold": 180
+        },
+        {
+            "name": "The Dedicated",
+            "description": "Reach a 365-day streak",
+            "threshold": 365
+        }
+    ]
+}

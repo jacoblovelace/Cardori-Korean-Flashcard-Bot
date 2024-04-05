@@ -113,6 +113,7 @@ class FlashcardObject:
             "word": trans_word,
             "dfn": trans_dfn
         }
+        self.label = None
         self.spaced_repetition = spaced_repetition or {
             "to_review": False,
             "last_reviewed": None,

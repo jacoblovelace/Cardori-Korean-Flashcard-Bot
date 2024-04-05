@@ -280,26 +280,44 @@ async def search(ctx, word):
         )
         
 @Bot._bot.command(aliases=['f', '플래시카드', 'ㅍ'])
-async def flashcards(ctx):
+async def flashcards(ctx, *args):
     """
     Displays the flashcard set belonging to the user.
 
     :param ctx (discord.ext.commands.Context): The context of the command.
     """
-    user_flashcard_set = Bot._table.get_flashcard_set(ctx.author)
+    user_flashcard_list = list(Bot._table.get_flashcard_set(ctx.author).values())
     
-    flashcard_list = []
-    for i, flashcard in enumerate(user_flashcard_set.values()):
-        flashcard_list.append(f'[{i}]\t{flashcard["front"]["word"]} / {flashcard["back"]["word"]}')
+    # PARSE ARGUMENTS
+    filters = []
+    if "-r" in args:
+        filters.append(FlashcardFilter(["spaced_repetition", "to_review"], True))
+    
+    for arg in args:
+        if arg.startswith("(") and arg.endswith(")"):
+            label = arg[1:-1]
+            if label.startswith("!"):
+                filters.append(FlashcardFilter(["label"], label[1:], operation="!="))
+            else:
+                filters.append(FlashcardFilter(["label"], label))
+        
+    # apply filters
+    for filter in filters:
+        user_flashcard_list = filter.apply(user_flashcard_list)
+    
+    # generate list (String Builder) of flashcards in string format
+    flashcard_display_list = []
+    for i, flashcard in enumerate(user_flashcard_list):
+        flashcard_display_list.append(f'[{i}]\t{flashcard["front"]["word"]} / {flashcard["back"]["word"]}')
     
     flashcard_set_embed = discord.Embed.from_dict(
         {
             "type": "rich",
             "title": f"{ctx.author}'s Flashcard Set",
-            "description": '\n'.join(flashcard_list),
+            "description": '\n'.join(flashcard_display_list),
             "color": 0x5865f2,
             "footer": {
-                "text": f'{len(flashcard_list)} flashcard{"" if len(flashcard_list) == 1 else "s"}'
+                "text": f'{len(flashcard_display_list)} flashcard{"" if len(flashcard_display_list) == 1 else "s"}'
             }
         }
     )
