@@ -245,3 +245,49 @@ class FlashcardObject:
         
         return points_earned
     
+class FlashcardFilter:
+    def __init__(self, value_path, filter_value, operation=None):
+        """
+        Initializes a FlashcardFilter instance.
+
+        :param value_path: A list representing the traversal of flashcard fields to look in.
+        :param filter_value: The value to compare against.
+        :param operation: Optional. The comparison operation to use (e.g., "==", "!=", ">", "<", ">=", "<=").
+        """
+        self.value_path = value_path
+        self.filter_value = filter_value
+        self.operation = operation
+
+    def apply(self, flashcard_list):
+        """
+        Applies the filter to a dictionary of flashcards.
+
+        :param flashcard_set: Dictionary of flashcards.
+        :return: Filtered flashcards.
+        """
+        
+        filtered_flashcards = []
+        comparison_operations = {
+            "==": lambda x, y: x == y,
+            "!=": lambda x, y: x != y,
+            ">": lambda x, y: x > y,
+            "<": lambda x, y: x < y,
+            ">=": lambda x, y: x >= y,
+            "<=": lambda x, y: x <= y,
+            "not": lambda x, y: x is not y
+        }
+
+        for flashcard in flashcard_list:
+            value = flashcard
+            # traverse value path and check if valid
+            for key in self.value_path:
+                value = value.get(key)
+                if value is None:
+                    break
+            if value is not None:
+                comparison_op = self.operation or "=="
+                if comparison_op in comparison_operations:
+                    if comparison_operations[comparison_op](value, self.filter_value):
+                        filtered_flashcards.append(flashcard)
+
+        return filtered_flashcards

@@ -220,23 +220,28 @@ class Users:
             Key={"id": user.id, "name": user.name}
         )["Item"]["flashcard_set"]
     
-    def get_random_flashcards(self, user, num_flashcards):
+    def get_random_flashcards(self, user, num_flashcards, filters=[]):
         """
         Retrieves a specified number of random flashcards from the user's flashcard set.
 
         :param user: The user whose flashcard set is being accessed.
         :param num_flashcards: The number of random flashcards to retrieve.
+        :param filters: Optional. A list of filter objects to apply to the flashcards.
         :return: A list of randomly selected flashcards.
         """
         
-        # get the user's flashcard set
-        user_flashcard_set = self.get_flashcard_set(user)
+        # get the user's flashcard set and convert to a list
+        user_flashcard_list = list(self.get_flashcard_set(user).values())
         
+        # apply filters if any
+        for filter_obj in filters:
+            user_flashcard_list = filter_obj.apply(user_flashcard_list)
+            
         # ensure that you cannot request more flashcards than available
-        num_flashcards = min(num_flashcards, len(user_flashcard_set))
+        num_flashcards = min(num_flashcards, len(user_flashcard_list))
         
         # select num_flashcards unique items at random
-        random_flashcards = random.sample(list(user_flashcard_set.values()), num_flashcards)
+        random_flashcards = random.sample(user_flashcard_list, num_flashcards)
         
         return random_flashcards
 

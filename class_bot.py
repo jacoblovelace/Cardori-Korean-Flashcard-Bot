@@ -36,7 +36,7 @@ import datetime
 from discord.ext import commands, tasks
 import korean_dictionary
 from dotenv import load_dotenv
-from class_interaction_objects import FlashcardObject
+from class_interaction_objects import FlashcardObject, FlashcardFilter
 
 class Bot:
     """Encapsulates a discord.ext commands Bot."""
@@ -312,19 +312,32 @@ async def quiz(ctx, *args):
 
     :param ctx (discord.ext.commands.Context): The context of the command.
     :param *args (str): Variable arguments:
-        - "-i" to invert flashcards.
         - An integer to specify the number of flashcards for the quiz.
+        - "-i" to invert flashcards.
+        - "-r" to filter for cards that need to be reviewed
+        - (<label>) to filter on <label>
+        - !(<label>) to filter on NOT <label>
     """
     
-    # parse variable arguments
+    # PARSING ARGUMENTS
+    num_cards = 10
     inverted = "-i" in args
-    num_cards = 10 
+    filters = []
+  
     for arg in args:
+        # number of flashcards specifier
         if arg.isdigit():
             num_cards = max(int(arg), 1)
+        # filter for review option
+        elif arg == "-r":
+            filters.append(FlashcardFilter(["spaced_repetition", "to_review"], True))
+        # filter on label option
+        elif arg.startswith("(") and arg.endswith(")"):
+            label = arg[2:-1] if arg.startswith("!(") else arg[1:-1]
+            filters.append(FlashcardFilter(["label"], label, operation="!=" if arg.startswith("!(") else "=="))
     
     # retrieve random list of flashcards
-    flashcard_list = Bot._table.get_random_flashcards(ctx.author, num_cards)
+    flashcard_list = Bot._table.get_random_flashcards(ctx.author, num_cards, filters=filters)
     
     # if no flashcards in set, send error
     if not flashcard_list:
