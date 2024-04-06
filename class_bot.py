@@ -35,8 +35,10 @@ import asyncio
 import datetime
 from discord.ext import commands, tasks
 import korean_dictionary
+import class_badge
 from dotenv import load_dotenv
 from class_interaction_objects import FlashcardObject, FlashcardFilter
+
 
 class Bot:
     """Encapsulates a discord.ext commands Bot."""
@@ -48,6 +50,7 @@ class Bot:
         )
     _guild = None
     _table = None
+    _badge_data = None
 
     def __new__(cls, table):
         """
@@ -101,6 +104,10 @@ async def on_ready():
             
     # start the review loop task
     check_cards_for_review.start()
+    
+    # load badge objects from json file
+    Bot._badge_data = class_badge.load_badges_from_json("badges.json")
+    
 
 @Bot._bot.event
 async def on_member_join(member):
@@ -190,8 +197,11 @@ async def check_cards_for_review():
                     reminder_packet.append(flashcard_dict)
         
         # send packet of cards to review if not empty
+        if not user_entry["preferences"]["notifications"]:
+            continue
+        
         if reminder_packet:
-            user_id = user_entry['id']
+            user_id = user_entry["id"]
             user = Bot._bot.get_user(user_id)
             user_dm_channel = await user.create_dm()
             
@@ -381,6 +391,7 @@ async def quiz(ctx, *args):
     
     points_earned = 0
     index = 0
+    completed = False
     
     # begin iteration through flashcard list
     while index < len(flashcard_list):
@@ -475,10 +486,17 @@ async def quiz(ctx, *args):
             
             # increment to next flashcard in quiz
             index += 1
+            
+            # check for completion
+            if index == len(flashcard_list):
+                completed = True 
             await asyncio.sleep(1)
             
     # end of quiz
-    Bot._table.update_user_points(ctx.author, points_earned)
+    if completed:
+        Bot._table.update_user_number_progress(ctx.author, "quizzes_completed", 1)
+    Bot._table.update_user_number_progress(ctx.author, "flashcards_studied", index)
+    Bot._table.update_user_number_progress(ctx.author, "study_points", points_earned)
 
     await ctx.send(
         embed=discord.Embed(
@@ -488,3 +506,18 @@ async def quiz(ctx, *args):
             color=0x5865f2,
         )
     )
+    
+    # check for appropriate badges
+    user_progress = Bot._table.get_user(ctx.author)["progress"]
+    for badge in Bot._badge_data:
+        if not badge.completed and badge.check_completion(user_progress):
+            badge.complete()
+            await ctx.send(
+                embed=discord.Embed(
+                    type="rich",
+                    title=f'{ctx.author.name} earned a new badge: {badge.name}',
+                    description=f'{badge.description}',
+                    color=0x29c67c,
+                )
+            )
+            

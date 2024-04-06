@@ -307,18 +307,14 @@ class Users:
             ReturnValues="UPDATED_NEW"
         )
                
-    def update_user_points(self, user, value):
+    def update_user_number_progress(self, user, field, value):
         """
-        Given a value to be added, updates the study points field for a user in the table.
-
-        :param user: Discord user object.
-        :param amount: The value to add to the user's study points field.
+        Updates a specified Number field of a user's progress data with a specified value.
         """
-        
         try:
-            response = self.table.update_item(
+            self.table.update_item(
                 Key={"id": user.id, "name": user.name},
-                UpdateExpression="set progress.study_points = progress.study_points + :val",
+                UpdateExpression=f"set progress.{field} = progress.{field} + :val",
                 ExpressionAttributeValues={":val": value},
                 ReturnValues="UPDATED_NEW",
             )
