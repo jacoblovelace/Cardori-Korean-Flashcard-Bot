@@ -327,3 +327,20 @@ class Users:
                 err.response["Error"]["Message"],
             )
             raise
+
+    def label_flashcards(self, user, label, flashcards_to_label):
+        user_flashcard_set = self.get_flashcard_set(user)
+    
+        for i in flashcards_to_label:
+            # get the flashcard ID using index, then update its label
+            flashcard_id = list(user_flashcard_set.keys())[i] 
+            user_flashcard_set[flashcard_id]["label"] = label
+        
+        # update the user's flashcard list
+        self.table.update_item(
+            Key={"id": user.id, "name": user.name},
+            UpdateExpression="SET flashcard_set = :val",
+            ExpressionAttributeValues={':val': user_flashcard_set},
+            ReturnValues="UPDATED_NEW"
+        )
+        

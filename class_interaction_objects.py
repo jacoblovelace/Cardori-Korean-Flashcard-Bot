@@ -138,6 +138,7 @@ class FlashcardObject:
             flashcard_dict['front']['dfn'],
             flashcard_dict['back']['word'],
             flashcard_dict['back']['dfn'],
+            flashcard_dict['label'],
             flashcard_dict.get('spaced_repetition', {})
         )
         

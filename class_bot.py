@@ -33,6 +33,7 @@ import logging
 import discord
 import asyncio
 import datetime
+import re
 from discord.ext import commands, tasks
 import korean_dictionary
 import class_badge
@@ -76,6 +77,46 @@ class Bot:
         
         print("Running the Bot instance bot...")
         cls._bot.run(os.getenv('DISCORD_TOKEN'))
+    
+
+def parse_label_input(input_string, max_num_flashcards):
+    """
+    Parse a string containing flashcard numbers and a label in various formats.
+
+    Valid formats:
+    - Label and single number: "label 4"
+    - Label and comma-separated list: "label 4, 15, 20"
+    - Label and range of numbers: "label 6-13"
+    - Mix of the above: "label 4, 15, 20, 6-13"
+
+    :param input_string: The string containing flashcard numbers and a label.
+    :return: 
+        - If valid: A tuple containing the label (string) and a list of integers representing the flashcard numbers.
+        - else: None representing the label and an empty list representing the flashcard numbers.
+    
+    """
+    
+    match = re.match(r'^([^\d]+)(\d+(-\d+)?(,\s*\d+(-\d+)?)*?)$', input_string)
+    if not match:
+        return None, []
+
+    label = match.group(1).strip()
+    flashcard_numbers = []
+    numbers_str = match.group(2)
+    for part in numbers_str.split(','):
+        if '-' in part:
+            start, end = map(int, part.split('-'))
+            if not (1 <= start <= max_num_flashcards and 1 <= end <= num_flashcards):
+                print("Invalid flashcard range")
+                return None, []
+            flashcard_numbers.extend(range(start, end + 1))
+        else:
+            num = int(part)
+            if not 1 <= num <= max_num_flashcards:
+                return None, []
+            flashcard_numbers.append(num)
+
+    return label, flashcard_numbers
 
 
 # EVENTS
@@ -134,7 +175,7 @@ async def on_reaction_add(reaction, user):
         embed = reaction.message.embeds[0]
         
         # SEARCH RESULT EMBED
-        if embed.footer.text.startswith('S'):
+        if embed.footer and embed.footer.text.startswith('S'):
             # create a flashcard from embed data
             flashcard_obj = FlashcardObject( 
                 embed.footer.text[1:],
@@ -145,13 +186,14 @@ async def on_reaction_add(reaction, user):
             )
             # add newly created flashcard as dict to flashcard set
             if not Bot._table.add_flashcard_to_set(user, flashcard_obj.to_dict()):
-                error_embed = discord.Embed.from_dict(
-                    {
-                        "type": "rich",
-                        "title": "Error",
-                        "description": f"Cannot add flashcard. Maximum capacity of {Bot._table.max_capacity} reached.",
-                        "color": 0xFF6347,
-                    }
+
+                error_embed = discord.Embed(
+                    embed=discord.Embed(
+                        type="rich",
+                        title="Error",
+                        description=f"Cannot add flashcard. Maximum capacity of {Bot._table.max_capacity} reached.",
+                        color=0xFF6347
+                    )
                 )
                 await reaction.message.channel.send(embed=error_embed)
 
@@ -295,7 +337,12 @@ async def flashcards(ctx, *args):
     Displays the flashcard set belonging to the user.
 
     :param ctx (discord.ext.commands.Context): The context of the command.
+    :param *args (str): Variable arguments:
+        - "-r" to filter for cards that need to be reviewed
+        - (<label>) to filter on <label>
+        - !(<label>) to filter on NOT <label>
     """
+    
     user_flashcard_list = list(Bot._table.get_flashcard_set(ctx.author).values())
     
     # PARSE ARGUMENTS
@@ -315,10 +362,10 @@ async def flashcards(ctx, *args):
     for filter in filters:
         user_flashcard_list = filter.apply(user_flashcard_list)
     
-    # generate list (String Builder) of flashcards in string format
+    # generate list (String Builder) of flashcards
     flashcard_display_list = []
     for i, flashcard in enumerate(user_flashcard_list):
-        flashcard_display_list.append(f'[{i}]\t{flashcard["front"]["word"]} / {flashcard["back"]["word"]}')
+        flashcard_display_list.append(f'[{i+1}]\t{flashcard["front"]["word"]} / {flashcard["back"]["word"]}')
     
     flashcard_set_embed = discord.Embed.from_dict(
         {
@@ -331,7 +378,84 @@ async def flashcards(ctx, *args):
             }
         }
     )
-    await ctx.send(embed=flashcard_set_embed)
+    flashcard_list_message = await ctx.send(embed=flashcard_set_embed)
+    
+    # add reactions for labeling and deleting
+    await flashcard_list_message.add_reaction('🏷️')
+    await flashcard_list_message.add_reaction('🗑️')
+    
+    try:
+        reaction, user = await Bot._bot.wait_for(
+            'reaction_add', 
+            timeout=60, 
+            check=lambda reaction, user: user == ctx.author and reaction.message.id == flashcard_list_message.id and str(reaction.emoji) in ['🏷️', '🗑️']
+        )
+        
+        # LABEL LOGIC
+        if str(reaction.emoji) == '🏷️':
+            label_prompt = await ctx.send(
+                embed=discord.Embed(
+                    type="rich",
+                    title="Enter the label and the flashcards to label",
+                    description="Example: label 2 / label 1, 3, 5 / label 4-8",
+                    color=0xEED464
+                )
+            )
+            await label_prompt.add_reaction('❌')
+           
+            async def wait_for_cancel_reaction():
+                return await Bot._bot.wait_for(
+                    'reaction_add', 
+                    check=lambda reaction, user: user == ctx.author and reaction.message.id == label_prompt.id and str(reaction.emoji) == '❌'
+                )
+
+            async def wait_for_label_message():
+                return await Bot._bot.wait_for(
+                    'message',
+                    check=lambda m: m.author == user and m.channel == ctx.channel
+                )
+
+            # run both tasks concurrently
+            done, _ = await asyncio.wait(
+                [asyncio.create_task(wait_for_cancel_reaction()), asyncio.create_task(wait_for_label_message())],
+                return_when=asyncio.FIRST_COMPLETED,
+                timeout=60
+            )
+
+            # handle result
+            await label_prompt.delete()
+            result = done.pop().result()
+            if isinstance(result, tuple):
+                # cancel reaction received
+                return
+            else:
+                # message received
+                label_response = result
+                            
+            # parse label response
+            label, flashcards_to_label = parse_label_input(label_response.content, len(user_flashcard_list))
+            
+            if label and flashcards_to_label:
+                Bot._table.label_flashcards(user, label, flashcards_to_label)
+            else:
+                await ctx.send("Error labeling flashcards. Please try again.")
+                return
+        
+        # DELETE LOGIC
+        elif str(reaction.emoji) == '🗑️':  # Delete reaction
+            label_prompt = await ctx.send(
+                embed=discord.Embed(
+                    type="rich",
+                    title="Enter the flashcards to delete",
+                    description="Example: 2 / 1, 3, 5 / 4-8",
+                    color=0xEED464
+                )
+            )
+            await label_prompt.add_reaction('❌')
+            return
+            
+    except asyncio.TimeoutError:
+        return    
 
 @Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'])
 async def quiz(ctx, *args):
@@ -492,7 +616,7 @@ async def quiz(ctx, *args):
                 completed = True 
             await asyncio.sleep(1)
             
-    # end of quiz
+    # update user progress fields
     if completed:
         Bot._table.update_user_number_progress(ctx.author, "quizzes_completed", 1)
     Bot._table.update_user_number_progress(ctx.author, "flashcards_studied", index)
