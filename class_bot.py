@@ -103,20 +103,77 @@ def parse_label_input(input_string, max_num_flashcards):
     label = match.group(1).strip()
     flashcard_numbers = []
     numbers_str = match.group(2)
+    flashcard_numbers = []
     for part in numbers_str.split(','):
         if '-' in part:
             start, end = map(int, part.split('-'))
-            if not (1 <= start <= max_num_flashcards and 1 <= end <= num_flashcards):
-                print("Invalid flashcard range")
+            if not (1 <= start <= max_num_flashcards and 1 <= end <= max_num_flashcards):
                 return None, []
+            
             flashcard_numbers.extend(range(start, end + 1))
         else:
             num = int(part)
             if not 1 <= num <= max_num_flashcards:
                 return None, []
+            
             flashcard_numbers.append(num)
-
+            
     return label, flashcard_numbers
+
+def parse_delete_input(input_string, max_num_flashcards):
+    """
+    Parse a string containing flashcard numbers in various formats.
+
+    Valid formats:
+    - Single number: "4"
+    - Comma-separated list: "4, 15, 20"
+    - Range of numbers: "6-13"
+    - Mix of the above: "4, 15, 20, 6-13"
+
+    :param input_string: The string containing flashcard numbers and a label.
+    :return: 
+        - If valid: A list of integers representing the flashcard numbers.
+        - else: An empty list representing the flashcard numbers.
+    
+    """
+    
+    flashcard_numbers = []
+    for part in input_string.split(','):
+        if '-' in part:
+            start, end = map(int, part.split('-'))
+            if not (1 <= start <= max_num_flashcards and 1 <= end <= max_num_flashcards):
+                return None, []
+            
+            flashcard_numbers.extend(range(start, end + 1))
+        else:
+            num = int(part)
+            if not 1 <= num <= max_num_flashcards:
+                return None, []
+            
+            flashcard_numbers.append(num)
+            
+    return flashcard_numbers
+
+
+async def wait_for_cancel_reaction(ctx, label_prompt):
+    return await Bot._bot.wait_for(
+        'reaction_add', 
+        check=lambda reaction, user: user == ctx.author and reaction.message.id == label_prompt.id and str(reaction.emoji) == '❌'
+    )
+
+async def wait_for_message(ctx, user):
+    return await Bot._bot.wait_for(
+        'message',
+        check=lambda m: m.author == user and m.channel == ctx.channel
+    )
+
+async def wait_for_cancel_reaction_or_message(ctx, user, label_prompt):
+    done, _ = await asyncio.wait(
+        [asyncio.create_task(wait_for_cancel_reaction(ctx, label_prompt)), asyncio.create_task(wait_for_message(ctx, user))],
+        return_when=asyncio.FIRST_COMPLETED,
+        timeout=60
+    )
+    return done
 
 
 # EVENTS
@@ -403,43 +460,40 @@ async def flashcards(ctx, *args):
             )
             await label_prompt.add_reaction('❌')
            
-            async def wait_for_cancel_reaction():
-                return await Bot._bot.wait_for(
-                    'reaction_add', 
-                    check=lambda reaction, user: user == ctx.author and reaction.message.id == label_prompt.id and str(reaction.emoji) == '❌'
-                )
-
-            async def wait_for_label_message():
-                return await Bot._bot.wait_for(
-                    'message',
-                    check=lambda m: m.author == user and m.channel == ctx.channel
-                )
-
-            # run both tasks concurrently
-            done, _ = await asyncio.wait(
-                [asyncio.create_task(wait_for_cancel_reaction()), asyncio.create_task(wait_for_label_message())],
-                return_when=asyncio.FIRST_COMPLETED,
-                timeout=60
-            )
-
             # handle result
+            result = await wait_for_cancel_reaction_or_message(ctx, user, label_prompt)
+            result = result.pop().result()
             await label_prompt.delete()
-            result = done.pop().result()
+            
+            # cancel reaction received
             if isinstance(result, tuple):
-                # cancel reaction received
                 return
-            else:
-                # message received
-                label_response = result
                             
             # parse label response
-            label, flashcards_to_label = parse_label_input(label_response.content, len(user_flashcard_list))
+            label, flashcards_to_label = parse_label_input(result.content, len(user_flashcard_list))
+            
             
             if label and flashcards_to_label:
                 Bot._table.label_flashcards(user, label, flashcards_to_label)
+                flashcards_to_label_str = ", ".join(map(str, flashcards_to_label))
+                
+                await ctx.send(
+                    embed=discord.Embed(
+                        type="rich",
+                        title="Success",
+                        description=f'Labeled flashcard{"" if len(flashcards_to_label) == 1 else "s"} {flashcards_to_label_str} with the label \"{label}\"',
+                        color=0x5865f2
+                    )
+                )
             else:
-                await ctx.send("Error labeling flashcards. Please try again.")
-                return
+                await ctx.send(
+                    embed=discord.Embed(
+                        type="rich",
+                        title="Error",
+                        description="Error labeling flashcards",
+                        color=0xFF6347
+                    )
+                )
         
         # DELETE LOGIC
         elif str(reaction.emoji) == '🗑️':  # Delete reaction
@@ -452,10 +506,44 @@ async def flashcards(ctx, *args):
                 )
             )
             await label_prompt.add_reaction('❌')
-            return
+            
+            # handle result
+            result = await wait_for_cancel_reaction_or_message(ctx, user, label_prompt)
+            result = result.pop().result()
+            await label_prompt.delete()
+            
+            # cancel reaction received
+            if isinstance(result, tuple):
+                return
+                            
+            # parse label response
+            flashcards_to_delete = parse_delete_input(result.content, len(user_flashcard_list))
+            
+            if flashcards_to_delete:
+                Bot._table.delete_flashcards(user, flashcards_to_delete)
+                flashcards_to_delete_str = ", ".join(map(str, flashcards_to_delete))
+                
+                await ctx.send(
+                    embed=discord.Embed(
+                        type="rich",
+                        title="Success",
+                        description=f'Deleted flashcard{"" if len(flashcards_to_delete) == 1 else "s"} {flashcards_to_delete_str}',
+                        color=0x5865f2
+                    )
+                )
+            else:
+                await ctx.send(
+                    embed=discord.Embed(
+                        type="rich",
+                        title="Error",
+                        description="Error deleting flashcards",
+                        color=0xFF6347
+                    )
+                )
             
     except asyncio.TimeoutError:
-        return    
+        return
+      
 
 @Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'])
 async def quiz(ctx, *args):

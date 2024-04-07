@@ -329,6 +329,18 @@ class Users:
             raise
 
     def label_flashcards(self, user, label, flashcards_to_label):
+        """
+        Label specified flashcards in the user's flashcard set with the provided label.
+
+        :param user: The user whose flashcards are to be modified.
+        :param label: The label to be applied to the specified flashcards.
+        :param flashcards_to_label: A list of integers representing the indices of flashcards to be labeled.
+        """
+        
+        # account for index 1 list of flashcards by subtracting one from every flashcard index
+        flashcards_to_label = [index - 1 for index in flashcards_to_label]
+        
+        # get user's flashcard set
         user_flashcard_set = self.get_flashcard_set(user)
     
         for i in flashcards_to_label:
@@ -343,4 +355,34 @@ class Users:
             ExpressionAttributeValues={':val': user_flashcard_set},
             ReturnValues="UPDATED_NEW"
         )
+    
+    def delete_flashcards(self, user, flashcards_to_delete):
+        """
+        Flag and delete specified flashcards from the user's flashcard set.
+
+        :param user: The user whose flashcards are to be modified.
+        :param flashcards_to_delete: A list of integers representing the indices of flashcards to be deleted.
+        """
+        
+        # account for index 1 list of flashcards by subtracting one from every flashcard index
+        flashcards_to_delete = [index - 1 for index in flashcards_to_delete]
+        
+        # get user's flashcard set
+        user_flashcard_set = self.get_flashcard_set(user)
+        
+        # create a new list to store flashcards without the ones to be deleted
+        new_flashcard_set = {}
+        
+        for i, (flashcard_id, flashcard_data) in enumerate(user_flashcard_set.items()):
+            if i not in flashcards_to_delete:
+                new_flashcard_set[flashcard_id] = flashcard_data
+        
+        # update the user's flashcard list
+        self.table.update_item(
+            Key={"id": user.id, "name": user.name},
+            UpdateExpression="SET flashcard_set = :val",
+            ExpressionAttributeValues={':val': new_flashcard_set},
+            ReturnValues="UPDATED_NEW"
+        )
+
         
