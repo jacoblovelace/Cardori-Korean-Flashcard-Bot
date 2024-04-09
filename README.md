@@ -97,7 +97,7 @@ Badges are awarded to users based on meeting thresholds relating to various metr
   * Knowledge is Power - Complete 500 quizzes
   * *SECRET BADGE* - Complete 1000 quizzes
 
-* Longest Streak Badges
+* Streak Badges
 	* Streak of the Week - Reach a 7-day streak
  	* Week by Week - Reach a 14-day streak
   * Consistent - Reach a 30-day streak
