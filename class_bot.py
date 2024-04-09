@@ -223,9 +223,6 @@ async def on_ready():
     check_cards_for_review.start()
     
     # load badge objects from json file
-    with open("help.json", 'r') as file:
-        Bot._help_data = json.load(file)
-    # load badge objects from json file
     Bot._badge_data = class_badge.load_badges_from_json("badges.json")
     
 
