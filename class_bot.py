@@ -34,12 +34,29 @@ import discord
 import asyncio
 import datetime
 import re
+import json
 from discord.ext import commands, tasks
 import korean_dictionary
 import class_badge
 from dotenv import load_dotenv
 from class_interaction_objects import FlashcardObject, FlashcardFilter
 
+class CustomHelpCommand(commands.DefaultHelpCommand):
+    """
+    Override behavior of Discord.py default help command
+    """
+    
+    async def send_bot_help(self, mapping):
+        embed = self.get_bot_help_embed(mapping)
+        await self.get_destination().send(embed=embed)
+
+    def get_bot_help_embed(self, mapping):
+        embed = discord.Embed(title="Help", color=0x5865f2)
+        for _, commands in mapping.items():
+            command_list = [f'`{command.name}` - {command.short_doc}' for command in commands]
+            embed.add_field(name="Commands", value="\n".join(command_list), inline=False)
+        embed.set_footer(text="Type !help command for more info on a command.")
+        return embed
 
 class Bot:
     """Encapsulates a discord.ext commands Bot."""
@@ -47,10 +64,12 @@ class Bot:
     _instance = None
     _bot = commands.Bot(
         command_prefix='!', 
-        intents=discord.Intents(messages=True, guilds=True, members=True, message_content=True, reactions=True)
-        )
+        intents=discord.Intents(messages=True, guilds=True, members=True, message_content=True, reactions=True),
+        help_command=CustomHelpCommand(show_parameter_descriptions=False)
+    )
     _guild = None
     _table = None
+    _help_data = None
     _badge_data = None
 
     def __new__(cls, table):
@@ -204,6 +223,9 @@ async def on_ready():
     check_cards_for_review.start()
     
     # load badge objects from json file
+    with open("help.json", 'r') as file:
+        Bot._help_data = json.load(file)
+    # load badge objects from json file
     Bot._badge_data = class_badge.load_badges_from_json("badges.json")
     
 
@@ -328,13 +350,19 @@ async def check_cards_for_review():
 
 # COMMANDS
 
-@Bot._bot.command(aliases=['s', '검색', 'ㄱ'])
+@Bot._bot.command(aliases=['s', '검색', 'ㄱ'], category="Search")
 async def search(ctx, word):
     """
     Searches for the given word in the Korean dictionary and displays the search results.
+    
+    Arguments:
+        <word>: A Korean word in hangul
 
-    :param ctx (discord.ext.commands.Context): The context of the command.
-    :param word (str): The word to search for in the Korean dictionary.
+    Actions:
+        Add word to flashcard set
+
+    Example:
+        !search 나무
     """
     
     search_objects = korean_dictionary.get_search_results(word)
@@ -388,16 +416,24 @@ async def search(ctx, word):
             )
         )
         
-@Bot._bot.command(aliases=['f', '플래시카드', 'ㅍ'])
+@Bot._bot.command(aliases=['f', '플래시카드', 'ㅍ'], category="Flashcards")
 async def flashcards(ctx, *args):
     """
     Displays the flashcard set belonging to the user.
+            
+    Arguments (Optional):
+        -r: filter for cards that need to be reviewed
+        (<label>) to filter on <label>
+        !(<label>) to filter on NOT <label>
 
-    :param ctx (discord.ext.commands.Context): The context of the command.
-    :param *args (str): Variable arguments:
-        - "-r" to filter for cards that need to be reviewed
-        - (<label>) to filter on <label>
-        - !(<label>) to filter on NOT <label>
+    Actions:
+        Label specified cards
+        Delete specified cards
+
+    Examples:
+        !flashcards
+        !flashcards -r
+        !flashcards (animals)
     """
     
     user_flashcard_list = list(Bot._table.get_flashcard_set(ctx.author).values())
@@ -418,6 +454,17 @@ async def flashcards(ctx, *args):
     # apply filters
     for filter in filters:
         user_flashcard_list = filter.apply(user_flashcard_list)
+        
+    if not user_flashcard_list:
+        await ctx.send(
+            embed=discord.Embed(
+                type="rich",
+                title="Error",
+                description="No flashcards to display",
+                color=0xFF6347
+            )
+        )
+        return
     
     # generate list (String Builder) of flashcards
     flashcard_display_list = []
@@ -545,18 +592,28 @@ async def flashcards(ctx, *args):
         return
       
 
-@Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'])
+@Bot._bot.command(aliases=['q', 'ㅋ', '퀴즈'], category="Quiz")
 async def quiz(ctx, *args):
     """
-    Initiates a flashcard quiz session for the user.
+    Start a flashcard quiz session with optional filters.
 
-    :param ctx (discord.ext.commands.Context): The context of the command.
-    :param *args (str): Variable arguments:
-        - An integer to specify the number of flashcards for the quiz.
-        - "-i" to invert flashcards.
-        - "-r" to filter for cards that need to be reviewed
-        - (<label>) to filter on <label>
-        - !(<label>) to filter on NOT <label>
+    Arguments (Optional):
+        <number>: specify the number of flashcards in the quiz
+        -i: invert the front and back of all flashcards
+        -r: filter cards that need to be reviewed
+        (<label>): filter cards with given label
+        !(<label>): filter cards without given label
+        
+    Actions:
+        Flip flashcard
+        Rate card after flipping (Poor, Okay, Good)
+        End quiz early
+        
+    Examples:
+        !quiz
+        !quiz 8
+        !quiz -i (food)
+        !quiz -r !(animals) 10
     """
     
     # PARSING ARGUMENTS
@@ -721,9 +778,11 @@ async def quiz(ctx, *args):
     
     # check for appropriate badges
     user_progress = Bot._table.get_user(ctx.author)["progress"]
+    
     for badge in Bot._badge_data:
-        if not badge.completed and badge.check_completion(user_progress):
-            badge.complete()
+        # check that badge is not already earned
+        if badge.name not in [b['name'] for b in user_progress["badges"]] and badge.check_completion(user_progress):
+            Bot._table.add_badge_to_badges(ctx.author, badge)
             await ctx.send(
                 embed=discord.Embed(
                     type="rich",
@@ -732,4 +791,35 @@ async def quiz(ctx, *args):
                     color=0x29c67c,
                 )
             )
-            
+
+@Bot._bot.command(aliases=["t", "ㅌ", "통계"])
+async def stats(ctx):
+    """
+    View your stats and badges.
+
+    Example:
+        !stats
+    """
+    
+    user_progress_data = Bot._table.get_user(ctx.author)["progress"]
+    order = ["study_points", "flashcards_studied", "quizzes_completed", "current_streak", "longest_streak", "badges"]
+
+    
+    embed = discord.Embed(title=f"{ctx.author.name}'s Stats", color=0x5865f2)
+
+    for key in order:
+        if key == "badges":
+            continue
+        
+        value = user_progress_data[key]
+        value = str(value) if value is not None else "None"
+        embed.add_field(name=key.capitalize().replace("_", " "), value=value, inline=False)
+        
+    badges = user_progress_data["badges"]
+    if badges:
+        badge_descriptions = "\n".join([f"`{badge['name']}`\n{badge['description']}\n" for badge in badges])
+        embed.add_field(name="Badges", value=badge_descriptions)
+    else:
+        embed.add_field(name="Badges", value="No badges earned yet")
+    
+    await ctx.send(embed=embed)

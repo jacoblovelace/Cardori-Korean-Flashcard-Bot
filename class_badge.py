@@ -6,10 +6,15 @@ class Badge:
         self.description = description  
         self.metric = metric 
         self.threshold = threshold 
-        self.completed = False 
+        
+    def to_dict(self):
+        """
+        Converts the Badge instance to a dictionary.
 
-    def complete(self):
-        self.completed = True
+        :return: A dictionary representation of the Badge instance.
+        """
+        
+        return vars(self)
 
     def check_completion(self, user_progress):
         """

@@ -92,7 +92,7 @@ class FlashcardObject:
         "Poor": {"Learning": 0.5, "Review": 0.75}
     }
     
-    def __init__(self, id, korean_word, korean_dfn, trans_word, trans_dfn, spaced_repetition=None):
+    def __init__(self, id, korean_word, korean_dfn, trans_word, trans_dfn, label=None, spaced_repetition=None):
         """
         Initializes a FlashcardObject instance.
 
@@ -113,7 +113,7 @@ class FlashcardObject:
             "word": trans_word,
             "dfn": trans_dfn
         }
-        self.label = None
+        self.label = label
         self.spaced_repetition = spaced_repetition or {
             "to_review": False,
             "last_reviewed": None,
@@ -163,6 +163,7 @@ class FlashcardObject:
             "id": self.id,
             "front": self.front,
             "back": self.back,
+            "label": self.label,
             "spaced_repetition": spaced_repetition_copy
         }
     

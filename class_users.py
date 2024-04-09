@@ -306,27 +306,6 @@ class Users:
             ExpressionAttributeValues={':val': user_flashcard_set},
             ReturnValues="UPDATED_NEW"
         )
-               
-    def update_user_number_progress(self, user, field, value):
-        """
-        Updates a specified Number field of a user's progress data with a specified value.
-        """
-        try:
-            self.table.update_item(
-                Key={"id": user.id, "name": user.name},
-                UpdateExpression=f"set progress.{field} = progress.{field} + :val",
-                ExpressionAttributeValues={":val": value},
-                ReturnValues="UPDATED_NEW",
-            )
-        except ClientError as err:
-            logger.error(
-                "Couldn't update user %s in table %s. Here's why: %s: %s",
-                user.name,
-                self.table.name,
-                err.response["Error"]["Code"],
-                err.response["Error"]["Message"],
-            )
-            raise
 
     def label_flashcards(self, user, label, flashcards_to_label):
         """
@@ -385,4 +364,44 @@ class Users:
             ReturnValues="UPDATED_NEW"
         )
 
+    def update_user_number_progress(self, user, field, value):
+        """
+        Updates a specified Number field of a user's progress data with a specified value.
+        """
+        try:
+            self.table.update_item(
+                Key={"id": user.id, "name": user.name},
+                UpdateExpression=f"set progress.{field} = progress.{field} + :val",
+                ExpressionAttributeValues={":val": value},
+                ReturnValues="UPDATED_NEW",
+            )
+        except ClientError as err:
+            logger.error(
+                "Couldn't update user %s in table %s. Here's why: %s: %s",
+                user.name,
+                self.table.name,
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
+            raise
+
+    def add_badge_to_badges(self, user, badge):
         
+        badge_dict = badge.to_dict()
+        
+        try:
+            self.table.update_item(
+                Key={"id": user.id, "name": user.name},
+                UpdateExpression=f"SET progress.badges = list_append(progress.badges, :val)",
+                ExpressionAttributeValues={":val": [badge_dict]},
+                ReturnValues="UPDATED_NEW",
+            )
+        except ClientError as err:
+            logger.error(
+                "Couldn't update user %s in table %s. Here's why: %s: %s",
+                user.name,
+                self.table.name,
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
+            raise
